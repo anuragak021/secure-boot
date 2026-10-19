@@ -1,6 +1,7 @@
 add_executable(bootloader
   src/main.c src/boot.c src/boot_check.c src/header.c src/crc32.c
-  port/board.c port/crc_hw_port.c port/flash_port.c)
+  src/updater.c src/session.c src/protocol_codec.c src/cobs.c
+  port/board.c port/crc_hw_port.c port/flash_port.c port/transport_uart.c)
 target_include_directories(bootloader PRIVATE include port ${CMAKE_SOURCE_DIR}/common)
 target_link_libraries(bootloader PRIVATE cmsis_startup cmsis_system)
 target_compile_options(bootloader PRIVATE ${STRICT_WARNINGS} -Os -g)

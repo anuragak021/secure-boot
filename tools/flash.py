@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import glob
+import os
 import sys
 import time
 from typing import Protocol
@@ -17,6 +19,20 @@ RETRY_LIMIT = 3
 HELLO_INTERVAL_S = 0.05
 HELLO_DRAIN_S = 0.15
 FIXED_HEADER_BYTES = im.HEADER_BYTES
+
+
+STLINK_PORT_GLOB = "/dev/serial/by-id/*STLINK*-if02"
+
+
+def find_stlink_port() -> str:
+    """Stable path of the Nucleo's virtual COM port (ttyACM numbers move when boards attach)."""
+    matches = sorted(glob.glob(STLINK_PORT_GLOB))
+    if len(matches) != 1:
+        raise FlashError(
+            f"expected exactly one ST-Link serial port ({STLINK_PORT_GLOB}), found {len(matches)}; "
+            "use --port to choose"
+        )
+    return os.path.realpath(matches[0])
 
 
 class FlashError(RuntimeError):
@@ -187,7 +203,7 @@ class Flasher:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("image", help="image file from mkimage.py")
-    ap.add_argument("-p", "--port", default="/dev/ttyACM0")
+    ap.add_argument("-p", "--port", default="auto", help="serial port or auto (ST-Link VCP)")
     ap.add_argument("-b", "--baud", type=int, default=115200)
     ap.add_argument("--wait", type=float, default=15.0, help="seconds to wait for the bootloader")
     ap.add_argument("--no-boot", action="store_true", help="verify but do not send BOOT")
@@ -206,8 +222,9 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_local_check:
             hdr = im.check_image(image)
             print(f"image OK: {hdr.image_size} bytes, version 0x{hdr.fw_version:08X}")
+        args.port = find_stlink_port() if args.port == "auto" else args.port
         link = serial.Serial(args.port, args.baud, timeout=0.02)
-    except (OSError, im.ImageError, ImportError) as exc:
+    except (OSError, im.ImageError, ImportError, FlashError) as exc:
         print(f"flash: error: {exc}", file=sys.stderr)
         return 1
 

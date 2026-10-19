@@ -23,6 +23,7 @@ Signing is the first item on the roadmap. The folder name is the project name.
 * **23 Python tests**: 13 unit tests of the image format, COBS, packets and `mkimage.py`, and 10 tests of `flash.py`, of which 8 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 8 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer and `--no-boot`.
 * **10 hardware scenarios** on the Nucleo (`tools/hwtest.py`, report in [`docs/hw_test_results.md`](docs/hw_test_results.md)), all passing on the final firmware:
   fast to slow and back, flipped payload byte, wrong magic / oversized image / bad header CRC, killed transfer then reset, duplicate / out-of-order / wrong-seq packets, throughput.
+* Confirmed by eye on the board: after `flash.py` updated fast to slow, LD3 (red) blinks about once per second and LD1/LD2 are off; with B1 held at reset the bootloader stays in update mode.
 * Also done by hand: flipping one byte in a real image file and flashing it with `--no-local-check` gives `NACK VERIFY_FAIL` (exit code 2), and the board stays in the bootloader after reset.
 * `cppcheck` (warning, style, performance, portability; bootloader, app_demo, smoke, tests) and `clang-tidy` (bugprone, cert, clang-analyzer; pure-logic files through the host build, hardware files through the ARM compile database) are clean. Vendor CMSIS is excluded. `clang-format`, `black` and `ruff` checks pass. Deviations: see NOTES.md.
 

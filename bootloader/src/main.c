@@ -79,7 +79,6 @@ int main(void)
 
     /* Boot decision (see the project spec): stay if B1 is held or the app is not valid;
      * otherwise give the host HELLO_WINDOW_MS to say hello before jumping. */
-    bool update_mode = true;
     if (!crc_ok) {
         log_line("BL: update mode (no CRC unit)\r\n");
     } else if (board_button_pressed()) {
@@ -88,12 +87,10 @@ int main(void)
         log_line("BL: no valid app, staying\r\n");
     } else {
         const uint32_t start = board_millis();
-        update_mode = false;
-        while (!update_mode && ((board_millis() - start) < HELLO_WINDOW_MS)) {
+        while (!upd.have_last && ((board_millis() - start) < HELLO_WINDOW_MS)) {
             (void)pump(&upd, &rx, POLL_TIMEOUT_MS);
-            update_mode = upd.have_last;
         }
-        if (!update_mode) {
+        if (!upd.have_last) {
             log_line("BL: app valid, jumping\r\n");
             boot_jump_to_app();
         }

@@ -3,7 +3,14 @@
 #include "bytes.h"
 #include "crc32.h"
 
-#define WORD_BYTES 4u
+/* Byte offsets of the seven little endian u32 fields. */
+#define OFF_MAGIC 0u
+#define OFF_VERSION 4u
+#define OFF_FW_VERSION 8u
+#define OFF_IMAGE_SIZE 12u
+#define OFF_IMAGE_CRC 16u
+#define OFF_FLAGS 20u
+#define OFF_HEADER_CRC 24u
 
 bl_status_t header_parse(const uint8_t *buf, size_t len, image_header_t *out)
 {
@@ -13,13 +20,13 @@ bl_status_t header_parse(const uint8_t *buf, size_t len, image_header_t *out)
     if (len != IMAGE_HEADER_BYTES) {
         return BL_ERR_BAD_LEN;
     }
-    out->magic = le32_read(&buf[0u * WORD_BYTES]);
-    out->header_version = le32_read(&buf[1u * WORD_BYTES]);
-    out->fw_version = le32_read(&buf[2u * WORD_BYTES]);
-    out->image_size = le32_read(&buf[3u * WORD_BYTES]);
-    out->image_crc32 = le32_read(&buf[4u * WORD_BYTES]);
-    out->flags = le32_read(&buf[5u * WORD_BYTES]);
-    out->header_crc32 = le32_read(&buf[6u * WORD_BYTES]);
+    out->magic = le32_read(&buf[OFF_MAGIC]);
+    out->header_version = le32_read(&buf[OFF_VERSION]);
+    out->fw_version = le32_read(&buf[OFF_FW_VERSION]);
+    out->image_size = le32_read(&buf[OFF_IMAGE_SIZE]);
+    out->image_crc32 = le32_read(&buf[OFF_IMAGE_CRC]);
+    out->flags = le32_read(&buf[OFF_FLAGS]);
+    out->header_crc32 = le32_read(&buf[OFF_HEADER_CRC]);
     return BL_OK;
 }
 
@@ -28,13 +35,13 @@ bl_status_t header_serialize(const image_header_t *hdr, uint8_t *buf)
     if ((hdr == NULL) || (buf == NULL)) {
         return BL_ERR_INVALID_ARG;
     }
-    le32_write(&buf[0u * WORD_BYTES], hdr->magic);
-    le32_write(&buf[1u * WORD_BYTES], hdr->header_version);
-    le32_write(&buf[2u * WORD_BYTES], hdr->fw_version);
-    le32_write(&buf[3u * WORD_BYTES], hdr->image_size);
-    le32_write(&buf[4u * WORD_BYTES], hdr->image_crc32);
-    le32_write(&buf[5u * WORD_BYTES], hdr->flags);
-    le32_write(&buf[6u * WORD_BYTES], hdr->header_crc32);
+    le32_write(&buf[OFF_MAGIC], hdr->magic);
+    le32_write(&buf[OFF_VERSION], hdr->header_version);
+    le32_write(&buf[OFF_FW_VERSION], hdr->fw_version);
+    le32_write(&buf[OFF_IMAGE_SIZE], hdr->image_size);
+    le32_write(&buf[OFF_IMAGE_CRC], hdr->image_crc32);
+    le32_write(&buf[OFF_FLAGS], hdr->flags);
+    le32_write(&buf[OFF_HEADER_CRC], hdr->header_crc32);
     return BL_OK;
 }
 

@@ -10,7 +10,7 @@
 #define NVIC_REG_COUNT 8u /* 8 x 32 = 256 interrupt lines, covers the H753's 150 */
 #define ALL_BITS 0xFFFFFFFFu
 
-typedef void (*app_entry_t)(void) __attribute__((noreturn));
+typedef void (*app_entry_t)(void);
 
 void boot_jump_to_app(void)
 {
@@ -50,4 +50,7 @@ void boot_jump_to_app(void)
     __ISB();
     __set_MSP(app_sp);
     ((app_entry_t)app_reset)();
+    for (;;) {
+        /* not reached: the app never returns; keeps the noreturn contract if it did */
+    }
 }

@@ -1,0 +1,7 @@
+Checks: >
+  clang-analyzer-*,bugprone-*,cert-*,misc-*,readability-braces-around-statements,
+  -bugprone-easily-swappable-parameters,-cert-dcl37-c,-cert-dcl51-cpp,-misc-include-cleaner,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+WarningsAsErrors: ''
+HeaderFilterRegex: '(bootloader|common)/'
+# The Annex K (_s) functions the insecureAPI check asks for do not exist in newlib; sizes are checked by hand.

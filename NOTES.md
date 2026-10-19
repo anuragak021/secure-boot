@@ -79,5 +79,22 @@ Modules (all pure C, no hardware): `crc32`, `cobs`, `header`, `protocol_codec`, 
 * **`hwtest.py`** resets the board through OpenOCD and drives the real flasher, so the results in `docs/hw_test_results.md` are reproducible. It checks the bootloader's own serial output after each reset ("no valid app, staying" versus the app banner), not just the NACKs.
 * **What "killed transfer" proves:** the host stops after N DATA packets and the board is reset. The slot was erased at START and the header was never written, so the boot check sees an erased header and stays in the bootloader. It does *not* prove behaviour under power loss.
 * **Not proven (open risks):** (1) Power cut during a flash word program can leave a word with a bad ECC; reading it may fault. The boot check only reads the header word and then the payload if the header validates, and the header is the last word written, but I did not test this. (2) Flash erase runs while executing from the same bank (CPU stalls). It works on this board; a bank-2 or RAM-resident erase would be more robust. (3) Only the happy UART timing at 115200 was measured; no stress test with noise or long runs. (4) A run of single measurements, not statistics.
-* **Static analysis:** cppcheck and clang-tidy are clean on `bootloader/` after fixing a dead store (found by cppcheck) and replacing multiplication-based offsets (clang-tidy). Disabled check: `clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling` (it wants the C11 Annex K `memcpy_s`, which newlib does not have; all sizes are bounds checked by hand).
+* **Static analysis:** cppcheck is clean on `bootloader/`, `app_demo/`, `smoke/` and `tests/`; clang-tidy is clean on the pure-logic files (host compile database) and on `main.c`, `boot.c`, `port/*.c`, `app_demo`, `smoke` (ARM compile database with `--target=arm-none-eabi` and the newlib include paths). Fixes made along the way: a dead store (cppcheck) and multiplication-based offsets (clang-tidy). Disabled check: `clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling` (it wants the C11 Annex K `memcpy_s`, which newlib does not have; all sizes are bounds checked by hand).
 * **MISRA C:2012:** followed where practical, not formally checked (no MISRA tool). Known deviations: integer-to-pointer casts for flash/register access, the `noreturn` jump, vendor code.
+
+## 11. What happens to the previous app (done-criteria item)
+
+* **Single slot.** `START` erases the app sectors (only after the header passed validation, and only the sectors the new image needs). From that moment the old app is gone.
+* **Failed or interrupted update:** the header word is programmed last, after the CRC matches. After a `VERIFY_FAIL`, a flash error, a host abort or a reset in the middle of a transfer the header area is still erased, so at the next reset `boot_check_slot` fails ("BL: no valid app, staying") and the device stays in the bootloader until a valid image arrives. Verified on hardware (`docs/hw_test_results.md`: flipped payload byte, killed transfer).
+* **Rejected at START** (wrong magic, oversized image, bad header CRC): nothing is erased, the old app keeps booting. Also verified on hardware.
+* **Not provided:** automatic fallback to the previous image. That needs two slots: dual bank with `SWAP_BANK` is roadmap item 2 (bank 2 at 0x08100000 is reserved for it).
+
+## 12. Deliberately ignored return values
+
+The standard says every return value is checked. These are `(void)` casts by design, each either harmless or covered by the host's retry:
+
+* `send` failures on the reply path (`session.c`, `main.c`): a reply that does not leave the UART is indistinguishable from a lost reply, which the host handles by timeout and resend (the updater answers a repeated packet idempotently).
+* `proto_rx_feed` returning `BL_ERR_OVERFLOW`: the receiver already dropped the over-long frame and resynchronised on the next delimiter; there is nothing else to do.
+* `g_tp->init()` (UART): it can only return `BL_OK`; if the link were dead the bootloader would just be unreachable, which the LED heartbeat shows.
+* `session_handle_frame` / `updater_process` results in the main loop: the reply (ACK or NACK) has already been sent; the status is the same information.
+* `header_serialize` into a correctly sized local buffer (cannot fail for non-NULL arguments).

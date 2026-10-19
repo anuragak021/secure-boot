@@ -20,13 +20,13 @@ Signing is the first item on the roadmap. The folder name is the project name.
 ### Tests
 
 * **50 C test functions** in 6 executables (CRC, COBS, header, protocol codec, updater state machine with a fake H7 flash, boot check), built with `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wdouble-promotion -Werror` plus ASan/UBSan, run by `ctest`.
-* **23 Python tests**, 10 of them end to end: the real `flash.py` against `sim_bootloader`, which is the actual C framing/session/updater code over pipes. Covers a damaged frame, a lost frame, a flipped payload byte, a corrupt header and a killed transfer.
+* **23 Python tests**: 13 unit tests of the image format, COBS, packets and `mkimage.py`, and 10 tests of `flash.py`, of which 8 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 8 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer and `--no-boot`.
 * **10 hardware scenarios** on the Nucleo (`tools/hwtest.py`, report in [`docs/hw_test_results.md`](docs/hw_test_results.md)), all passing on the final firmware:
   fast to slow and back, flipped payload byte, wrong magic / oversized image / bad header CRC, killed transfer then reset, duplicate / out-of-order / wrong-seq packets, throughput.
 * Also done by hand: flipping one byte in a real image file and flashing it with `--no-local-check` gives `NACK VERIFY_FAIL` (exit code 2), and the board stays in the bootloader after reset.
-* `cppcheck` (warning, style, performance, portability) and `clang-tidy` (bugprone, cert, clang-analyzer) are clean on the project code. Vendor CMSIS is excluded. Deviations: see NOTES.md.
+* `cppcheck` (warning, style, performance, portability; bootloader, app_demo, smoke, tests) and `clang-tidy` (bugprone, cert, clang-analyzer; pure-logic files through the host build, hardware files through the ARM compile database) are clean. Vendor CMSIS is excluded. `clang-format`, `black` and `ruff` checks pass. Deviations: see NOTES.md.
 
-### Measured (115200 baud, 256 byte DATA packets, one ACK per packet)
+### Measured (115200 baud, 256 byte DATA packets, one ACK per packet; KB = 1024 bytes)
 
 | Image | Total | Flash erase | Data transfer | Throughput |
 |---|---|---|---|---|
@@ -34,8 +34,9 @@ Signing is the first item on the roadmap. The folder name is the project name.
 | 32 KB | 4.20 s | 0.80 s | 3.38 s | 9.47 KB/s |
 | 128 KB | 15.29 s | 1.55 s | 13.67 s | 9.36 KB/s |
 
-Single runs on one board, not averages. The raw line rate is 11.5 KB/s, so the per-packet ACK,
-COBS and CRC overhead costs roughly 19%. The bootloader is 6056 bytes of flash in a 128 KB sector.
+Single runs on one board, not averages. The raw line rate (8N1) is 11,520 bytes/s = 11.25 KB/s,
+so the per-packet ACK, COBS and CRC overhead costs roughly 17%. The bootloader uses about 6 KB
+(text + data 6064 bytes) of its 128 KB sector.
 
 ## Quick start
 

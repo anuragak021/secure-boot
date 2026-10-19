@@ -1,0 +1,8 @@
+build-host/
+build-arm/
+__pycache__/
+*.pyc
+.venv/
+*.bin
+*.elf
+*.map

@@ -41,3 +41,13 @@ Modules (all pure C, no hardware): `crc32`, `cobs`, `header`, `protocol_codec`, 
 * **Extra error code:** `BL_ERR_BAD_CMD` (10) for an unknown command; the documented enum had no code for it.
 * **Failure policy:** any flash erase/write failure or VERIFY failure returns the updater to IDLE, so the host has to START again. Simple and safe, at the cost of not resuming.
 * Tests: 43 test functions across 5 executables, all passing.
+
+## 7. Image format, host tools and demo apps (step 4)
+
+* **Image file = 0x400 byte header area + payload.** The header (28 bytes) sits at the start, the rest of the area is 0xFF. The file can therefore be programmed straight to 0x08020000 with OpenOCD (used to test the jump before the protocol exists), and `flash.py` sends the header bytes exactly as stored (never rebuilt) and the payload from file offset 0x400.
+* **Header definition is duplicated** in `common/image_header.h` and `tools/imagefmt.py`. Both have a test with the same expected bytes (`test_serialize_layout` / `test_header_layout_matches_c`), and the same golden HELLO frame is checked in C and Python, so drift fails a test. Alternative: generate one from the other; not worth the build complexity for a 28 byte struct.
+* **Firmware version** is `major<<16 | minor<<8 | patch`.
+* **Python CRC** is `zlib.crc32`, the C side is the nibble table and (on target) the hardware unit; all three agree on `0xCBF43926`.
+* **Demo apps:** `fast` = LD1 (green) 100 ms half period, version 1.0.0; `slow` = LD3 (red) 1000 ms, version 2.0.0. Different LED *and* speed, so a wrong image is obvious at a glance. Both print `app <name> running` on the VCP every 2 s, so progress can be checked from the host too.
+* **App vector table:** linked at 0x08020400 with `ALIGN(1024)`; `SystemInit` is built with `USER_VECT_TAB_ADDRESS` + `VECT_TAB_OFFSET=0x20400` so `SCB->VTOR` is set at the very start of `Reset_Handler`. Linker `ASSERT`s check the origin is 1 KB aligned and the table (664 bytes) fits in 1 KB. Verified from the ELF: `.isr_vector` at 0x08020400, size 0x298.
+* The bootloader keeps `SystemInit` without VTOR change (reset default 0x08000000).

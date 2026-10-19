@@ -18,3 +18,7 @@ foreach(t crc32 cobs header protocol updater)
   target_compile_options(test_${t} PRIVATE ${STRICT_WARNINGS} -fsanitize=address,undefined)
   add_test(NAME ${t} COMMAND test_${t})
 endforeach()
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME python_tools
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/tests/test_tools.py)

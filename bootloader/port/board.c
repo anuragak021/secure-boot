@@ -18,10 +18,12 @@
 #define VCP_RX_PIN 9u
 #define VCP_AF 7u /* USART3 */
 
+#define MODER_INPUT 0u
 #define MODER_OUTPUT 1u
 #define MODER_AF 2u
 #define PIN_MODE_BITS 2u
 #define AFR_BITS 4u
+#define PUPDR_PULL_DOWN 2u
 
 /* Written by the SysTick ISR, read by the main loop: volatile is required. */
 static volatile uint32_t g_ms;
@@ -71,7 +73,11 @@ void board_init(void)
     gpio_set_mode(LED_GREEN_PORT, LED_GREEN_PIN, MODER_OUTPUT);
     gpio_set_mode(LED_YELLOW_PORT, LED_YELLOW_PIN, MODER_OUTPUT);
     gpio_set_mode(LED_RED_PORT, LED_RED_PIN, MODER_OUTPUT);
-    /* PC13 stays an input (reset default). */
+    /* The H7 resets GPIO pins to analog mode (MODER=3), where IDR always reads 0: B1 must be
+     * switched to input explicitly. The Nucleo has an external pull-down on PC13. */
+    gpio_set_mode(BUTTON_PORT, BUTTON_PIN, MODER_INPUT);
+    BUTTON_PORT->PUPDR = (BUTTON_PORT->PUPDR & ~(3u << (BUTTON_PIN * PIN_MODE_BITS))) |
+                         (PUPDR_PULL_DOWN << (BUTTON_PIN * PIN_MODE_BITS));
 
     gpio_set_mode(VCP_PORT, VCP_TX_PIN, MODER_AF);
     gpio_set_mode(VCP_PORT, VCP_RX_PIN, MODER_AF);

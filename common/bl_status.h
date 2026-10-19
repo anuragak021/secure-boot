@@ -25,7 +25,8 @@ typedef enum {
     BL_ERR_COBS = 12,     /**< malformed COBS data */
     BL_ERR_OVERFLOW = 13, /**< buffer too small / frame too long */
     BL_ERR_TIMEOUT = 14,
-    BL_ERR_TRANSPORT = 15
+    BL_ERR_TRANSPORT = 15,
+    BL_ERR_BAD_VECTORS = 16 /**< app stack pointer / reset vector outside valid ranges */
 } bl_status_t;
 
 #endif /* BL_STATUS_H */

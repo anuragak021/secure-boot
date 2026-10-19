@@ -20,9 +20,12 @@
 #define BL_APP_PAYLOAD_ADDR (BL_APP_SLOT_BASE_ADDR + BL_APP_HEADER_AREA_BYTES)
 #define BL_APP_PAYLOAD_MAX_BYTES (BL_FLASH_BANK1_END_ADDR - BL_APP_PAYLOAD_ADDR)
 
-/** Valid AXI SRAM range for an app's initial stack pointer (top of stack may equal the end). */
-#define BL_SRAM_BASE_ADDR 0x24000000u
-#define BL_SRAM_END_ADDR 0x24080000u
+/** SRAM ranges an app's initial stack pointer may point into (the top may equal the end). */
+#define BL_AXI_SRAM_BASE_ADDR 0x24000000u
+#define BL_AXI_SRAM_END_ADDR 0x24080000u
+#define BL_DTCM_BASE_ADDR 0x20000000u
+#define BL_DTCM_END_ADDR 0x20020000u
+#define BL_STACK_ALIGN_BYTES 8u /* AAPCS: the stack is 8 byte aligned */
 
 _Static_assert(BL_APP_SLOT_BASE_ADDR % BL_FLASH_SECTOR_BYTES == 0u, "slot must be sector aligned");
 _Static_assert(BL_APP_PAYLOAD_ADDR % BL_FLASH_WORD_BYTES == 0u,

@@ -33,6 +33,8 @@ static void uart_puts(const char *s)
 
 int main(void)
 {
+    /* The bootloader jumps here with interrupts disabled; this app re-enables them. */
+    __enable_irq();
     RCC->AHB4ENR |= RCC_AHB4ENR_GPIOBEN | RCC_AHB4ENR_GPIODEN;
     RCC->APB1LENR |= RCC_APB1LENR_USART3EN;
     (void)RCC->APB1LENR;

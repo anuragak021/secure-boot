@@ -12,6 +12,7 @@ from typing import Protocol
 
 import bl_protocol as bp
 import imagefmt as im
+import livelog
 
 DEFAULT_REPLY_TIMEOUT_S = 1.0
 START_TIMEOUT_S = 20.0  # START erases flash sectors; the CPU is stalled for seconds
@@ -52,11 +53,13 @@ class Flasher:
         self,
         link: Link,
         log=print,
+        trace=None,
         reply_timeout: float = DEFAULT_REPLY_TIMEOUT_S,
         start_timeout: float = START_TIMEOUT_S,
     ) -> None:
         self.link = link
         self.log = log
+        self.trace = trace  # optional callback(direction, cmd, seq, payload) per packet
         self.reply_timeout = reply_timeout
         self.start_timeout = start_timeout
         self.seq = 0
@@ -85,9 +88,12 @@ class Flasher:
             if frame is None:
                 return None
             try:
-                return bp.decode_frame(frame)
+                pkt = bp.decode_frame(frame)
             except bp.ProtocolError:
                 continue  # noise, e.g. the app's text output: skip it
+            if self.trace:
+                self.trace("RX", pkt.cmd, pkt.seq, pkt.payload)
+            return pkt
 
     # --- request/response ---------------------------------------------------------------
     def exchange(self, cmd: int, payload: bytes = b"", timeout: float | None = None) -> bytes:
@@ -97,6 +103,8 @@ class Flasher:
         frame = bp.encode_packet(cmd, seq, payload)
         for attempt in range(1, RETRY_LIMIT + 2):
             self.link.write(frame)
+            if self.trace:
+                self.trace("TX", cmd, seq, payload)
             deadline = time.monotonic() + timeout
             retry_reason = "timeout"
             while True:
@@ -206,6 +214,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-p", "--port", default="auto", help="serial port or auto (ST-Link VCP)")
     ap.add_argument("-b", "--baud", type=int, default=115200)
     ap.add_argument("--wait", type=float, default=15.0, help="seconds to wait for the bootloader")
+    ap.add_argument(
+        "--live", action="store_true", help="show a live colour trace of every packet (for demos)"
+    )
     ap.add_argument("--no-boot", action="store_true", help="verify but do not send BOOT")
     ap.add_argument("--no-local-check", action="store_true", help="skip image validation (tests)")
     ap.add_argument(
@@ -229,12 +240,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     with link:
-        fl = Flasher(link)
+        live = livelog.LiveLog() if args.live else None
+        fl = Flasher(link, log=live.log, trace=live.trace) if live else Flasher(link)
         try:
-            print(f"waiting for bootloader on {args.port} (press RESET on the board)...")
+            if live:
+                live.banner(f"STM32H753ZI secure bootloader — {args.port} @ {args.baud} baud")
+                live.banner("waiting for bootloader: press RESET on the board")
+            else:
+                print(f"waiting for bootloader on {args.port} (press RESET on the board)...")
             info = fl.hello(args.wait)
             bl_version = int.from_bytes(info[4:8], "little")
-            print(f"bootloader found: proto {info[0]}, version 0x{bl_version:08X}")
+            if live:
+                live.banner("bootloader found, starting update")
+            else:
+                print(f"bootloader found: proto {info[0]}, version 0x{bl_version:08X}")
             stats = fl.update(
                 image,
                 boot=not args.no_boot,
@@ -244,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
         except (FlashError, IndexError) as exc:
             print(f"flash: FAILED: {exc}", file=sys.stderr)
             return 2
+    if live:
+        live.banner("UPDATE COMPLETE — application is running")
     print(
         f"done: {stats['payload_bytes']:.0f} bytes, total {stats['total_s']:.2f} s "
         f"(erase {stats['erase_s']:.2f} s, data {stats['data_s']:.2f} s, "

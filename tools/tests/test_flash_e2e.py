@@ -1,5 +1,6 @@
 """End-to-end: flash.py against the real C framing/updater code (tests/sim_bootloader)."""
 
+import io
 import os
 import select
 import subprocess
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bl_protocol as bp
 import flash
 import imagefmt as im
+import livelog
 
 SIM = os.environ.get("SIM_BOOTLOADER", "")
 SLOT_HEADER_AREA = im.HEADER_AREA_BYTES
@@ -93,6 +95,21 @@ class FlashEndToEnd(unittest.TestCase):
         self.assertEqual(mem[: len(image)], image)  # header area + payload byte for byte
         self.assertIn("boot_requested=1", err)
         self.assertGreater(out["kb_per_s"], 0)
+
+    def test_live_trace_shows_decoded_packets(self):
+        image = make_image(1000)
+        out = io.StringIO()
+        live = livelog.LiveLog(out=out, color=False)
+        with tempfile.TemporaryDirectory() as d:
+            link = SimLink(os.path.join(d, "flash.bin"))
+            fl = flash.Flasher(link, log=live.log, trace=live.trace, reply_timeout=0.3)
+            fl.hello(2.0)
+            fl.update(image)
+            link.close()
+        text = out.getvalue()
+        for needle in ("START", "DATA", "VERIFY", "BOOT", "ACK", "0x08020400", "100.0%"):
+            self.assertIn(needle, text)
+        self.assertNotIn("\x1b[", text)  # color=False: no escape codes
 
     def test_image_not_multiple_of_flash_word(self):
         image = make_image(1000 + 5)

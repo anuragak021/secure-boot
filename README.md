@@ -20,7 +20,7 @@ Signing is the first item on the roadmap. The folder name is the project name.
 ### Tests
 
 * **50 C test functions** in 6 executables (CRC, COBS, header, protocol codec, updater state machine with a fake H7 flash, boot check), built with `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wdouble-promotion -Werror` plus ASan/UBSan, run by `ctest`.
-* **23 Python tests**: 13 unit tests of the image format, COBS, packets and `mkimage.py`, and 10 tests of `flash.py`, of which 8 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 8 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer and `--no-boot`.
+* **24 Python tests**: 13 unit tests of the image format, COBS, packets and `mkimage.py`, and 11 tests of `flash.py`, of which 9 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 8 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer, `--no-boot` and the `--live` trace.
 * **10 hardware scenarios** on the Nucleo (`tools/hwtest.py`, report in [`docs/hw_test_results.md`](docs/hw_test_results.md)), all passing on the final firmware:
   fast to slow and back, flipped payload byte, wrong magic / oversized image / bad header CRC, killed transfer then reset, duplicate / out-of-order / wrong-seq packets, throughput.
 * Confirmed by eye on the board: after `flash.py` updated fast to slow, LD3 (red) blinks about once per second and LD1/LD2 are off; with B1 held at reset the bootloader stays in update mode.
@@ -60,6 +60,12 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 
 # update over UART, then press RESET (the tool waits for the bootloader)
 python3 tools/flash.py build-arm/app_demo/app_slow.img
+```
+
+Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). It is decoded on the host from the real wire traffic; the bootloader itself prints no text. Handy for screen recordings.
+
+```sh
+python3 tools/flash.py --live build-arm/app_demo/app_slow.img
 ```
 
 The tool finds the Nucleo's virtual COM port by its stable `/dev/serial/by-id` name (`--port` to

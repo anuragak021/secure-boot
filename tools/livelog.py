@@ -16,6 +16,7 @@ import imagefmt as im
 
 APP_SLOT_BASE = 0x0802_0400  # first byte after the 0x400 header area (flash layout: bootloader 128 KB, then the 1 KB header area)
 BAR_WIDTH = 24
+PACE_LINE_S = 0.25  # demo pacing: pause after each packet line so the arrows are readable
 BOOTLOADER_LOG_PREFIX = "BL:"
 
 CMD_NAMES = {
@@ -41,7 +42,13 @@ _MAGENTA = "\x1b[35m"
 class LiveLog:
     """Prints one coloured, timestamped line per packet; usable as Flasher(log=, trace=)."""
 
-    def __init__(self, out: TextIO | None = None, color: bool | None = None) -> None:
+    def __init__(
+        self,
+        out: TextIO | None = None,
+        color: bool | None = None,
+        pace_budget_s: float = 0.0,
+        sleep=time.sleep,
+    ) -> None:
         self.out = out if out is not None else sys.stdout
         if color is None:
             color = self.out.isatty() and "NO_COLOR" not in os.environ
@@ -49,6 +56,11 @@ class LiveLog:
         self._t0 = time.monotonic()
         self._total = 0
         self._sent = 0
+        self._sleep = sleep
+        self._pace_left_s = pace_budget_s
+        self._in_data = False
+        self.paused_s = 0.0  # total demo pacing added to the run
+        self.paused_data_s = 0.0  # the part of it added after the first DATA packet
 
     # --- formatting helpers ---------------------------------------------------------------
     def _c(self, style: str, text: str) -> str:
@@ -95,6 +107,17 @@ class LiveLog:
         )
         head = f"{arrow}  {self._c(_BOLD, f'{name:<6}')} seq={seq:3d} "
         self._emit(head + self._describe(direction, cmd, payload))
+        self._pace()
+
+    def _pace(self) -> None:
+        """Slow the first packet lines down (budgeted); the caller subtracts paused_s."""
+        if self._pace_left_s < PACE_LINE_S:
+            return
+        self._sleep(PACE_LINE_S)
+        self._pace_left_s -= PACE_LINE_S
+        self.paused_s += PACE_LINE_S
+        if self._in_data:
+            self.paused_data_s += PACE_LINE_S
 
     def _describe(self, direction: str, cmd: int, payload: bytes) -> str:
         if cmd == bp.CMD_HELLO:
@@ -133,4 +156,5 @@ class LiveLog:
         offset = int.from_bytes(payload[:4], "little")
         size = len(payload) - 4
         self._sent = max(self._sent, offset + size)
+        self._in_data = True
         return f"flash 0x{APP_SLOT_BASE + offset:08X} +{size:3d} B{self._bar()}"

@@ -20,7 +20,7 @@ Signing is the first item on the roadmap. The folder name is the project name.
 ### Tests
 
 * **50 C test functions** in 6 executables (CRC, COBS, header, protocol codec, updater state machine with a fake H7 flash, boot check), built with `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wdouble-promotion -Werror` plus ASan/UBSan, run by `ctest`.
-* **29 Python tests**: 14 unit tests of the image format, COBS, packets and `mkimage.py`, and 15 tests of `flash.py` and its live trace, of which 10 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 10 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer, a link fault injected at 88% of the transfer, `--no-boot` and the `--live` trace.
+* **30 Python tests**: 14 unit tests of the image format, COBS, packets and `mkimage.py`, and 16 tests of `flash.py` and its live trace, of which 10 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 10 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer, a link fault injected at 88% of the transfer, `--no-boot` and the `--live` trace.
 * **10 hardware scenarios** on the Nucleo (`tools/hwtest.py`, report in [`docs/hw_test_results.md`](docs/hw_test_results.md)), all passing on the final firmware:
   fast to slow and back, flipped payload byte, wrong magic / oversized image / bad header CRC, killed transfer then reset, duplicate / out-of-order / wrong-seq packets, throughput.
 * Confirmed by eye on the board: after `flash.py` updated fast to slow, LD3 (red) blinks about once per second and LD1/LD2 are off; with B1 held at reset the bootloader stays in update mode.
@@ -62,7 +62,7 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 python3 tools/flash.py build-arm/app_demo/app_slow.img
 ```
 
-Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). Packets are decoded on the host from the real wire traffic, and the bootloader's own text log lines (`BL: start`, `BL: HELLO received`, ...) are shown as `MCU log` lines. Handy for screen recordings. `--reset` resets the board through OpenOCD first, so nobody has to press the button at the right moment.
+Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). Packets are decoded on the host from the real wire traffic, and the bootloader's own text log lines (`BL: start`, `BL: HELLO received`, ...) are shown as `MCU log` lines. Handy for screen recordings. By default `--live` pauses 250 ms after each of the first 20 packet lines (5 s in total, `--live-pace 0` turns it off) so the two arrow directions are readable on video; that pacing is subtracted from the timings printed at the end and the line says so. `--reset` resets the board through OpenOCD first, so nobody has to press the button at the right moment.
 
 For a longer demo transfer, `mkimage.py --pad-to` appends deterministic filler after the app. The app is unchanged and the filler is never executed; it only makes the transfer bigger:
 

@@ -184,6 +184,15 @@ class TextLogTests(unittest.TestCase):
         self.assertIn("BL: start", text)
         self.assertIn("UPDATE FAILED", text)
 
+    def test_live_log_pacing_is_budgeted_and_accounted(self):
+        naps = []
+        live = livelog.LiveLog(out=io.StringIO(), color=False, pace_budget_s=1.0, sleep=naps.append)
+        for seq in range(10):
+            live.trace("TX", bp.CMD_HELLO, seq, b"")
+        self.assertEqual(naps, [livelog.PACE_LINE_S] * 4)  # 1.0 s budget / 0.25 s per line
+        self.assertAlmostEqual(live.paused_s, 1.0)
+        self.assertEqual(live.paused_data_s, 0.0)
+
     def test_trailing_text_after_last_frame_is_reported(self):
         link = self.Fake(bp.encode_packet(bp.CMD_ACK, 1) + b"BL: booting app\r\n")
         lines = []

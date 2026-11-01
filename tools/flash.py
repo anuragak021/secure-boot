@@ -20,6 +20,7 @@ DEFAULT_REPLY_TIMEOUT_S = 1.0
 START_TIMEOUT_S = 20.0  # START erases flash sectors; the CPU is stalled for seconds
 RETRY_LIMIT = 3
 OPENOCD_TIMEOUT_S = 20.0
+DEFAULT_LIVE_PACE_S = 5.0
 HELLO_INTERVAL_S = 0.05
 HELLO_DRAIN_S = 0.15
 FIXED_HEADER_BYTES = im.HEADER_BYTES
@@ -295,6 +296,13 @@ def main(argv: list[str] | None = None) -> int:
         "--live", action="store_true", help="show a live colour trace of every packet (for demos)"
     )
     ap.add_argument(
+        "--live-pace",
+        type=float,
+        default=DEFAULT_LIVE_PACE_S,
+        metavar="SECONDS",
+        help="with --live: slow the first packet lines down by this much in total (0 = off)",
+    )
+    ap.add_argument(
         "--reset",
         action="store_true",
         help="reset the board through OpenOCD instead of pressing RESET yourself",
@@ -328,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     with link:
-        live = livelog.LiveLog() if args.live else None
+        live = livelog.LiveLog(pace_budget_s=args.live_pace) if args.live else None
         fl = (
             Flasher(link, log=live.log, trace=live.trace, text=live.text) if live else Flasher(link)
         )
@@ -363,12 +371,19 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"flash: FAILED: {exc}", file=sys.stderr)
             return 2
+    note = ""
     if live:
         live.banner("UPDATE COMPLETE — application is running")
+        if live.paused_s > 0:  # remove the demo pacing so the numbers stay real
+            stats["total_s"] -= live.paused_s
+            stats["erase_s"] -= live.paused_s - live.paused_data_s
+            stats["data_s"] -= live.paused_data_s
+            stats["kb_per_s"] = stats["payload_bytes"] / 1024.0 / max(stats["data_s"], 1e-9)
+            note = f" (excluding {live.paused_s:.2f} s of demo pacing)"
     print(
         f"done: {stats['payload_bytes']:.0f} bytes, total {stats['total_s']:.2f} s "
         f"(erase {stats['erase_s']:.2f} s, data {stats['data_s']:.2f} s, "
-        f"{stats['kb_per_s']:.2f} KB/s)"
+        f"{stats['kb_per_s']:.2f} KB/s){note}"
     )
     return 0
 

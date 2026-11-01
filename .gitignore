@@ -7,3 +7,4 @@ __pycache__/
 *.elf
 *.map
 *.mp4
+!docs/demo.mp4

@@ -9,7 +9,7 @@ Signing is the first item on the roadmap. The folder name is the project name.
 
 ## Demo
 
-Screen recording of two real updates on the Nucleo board, shown at 1.5x speed: a successful 256 KB update over UART, then one with a link fault injected at 88% that the bootloader rejects, leaving the app unbooted. The trace is `flash.py --live`; the image is the demo app padded to 256 KB (see Quick start).
+Screen recording of two real updates on the Nucleo board: a successful 256 KB update over UART, then one with a link fault injected at 88% that the bootloader rejects, leaving the app unbooted. Each run is real-time for its first 9 seconds (including the deliberate demo pacing of the first packets), then fast-forwarded 6x, then the result is shown in real time; the whole GIF is 34 s, while each real update takes about 30 s. The trace is `flash.py --live`; the image is the demo app padded to 256 KB (see Quick start).
 
 ![flash.py --live: an update over UART, then a rejected one](docs/demo.gif)
 

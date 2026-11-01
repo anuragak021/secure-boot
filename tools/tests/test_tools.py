@@ -191,7 +191,6 @@ class TextLogTests(unittest.TestCase):
             live.trace("TX", bp.CMD_HELLO, seq, b"")
         self.assertEqual(naps, [livelog.PACE_LINE_S] * 4)  # 1.0 s budget / 0.25 s per line
         self.assertAlmostEqual(live.paused_s, 1.0)
-        self.assertEqual(live.paused_data_s, 0.0)
 
     def test_trailing_text_after_last_frame_is_reported(self):
         link = self.Fake(bp.encode_packet(bp.CMD_ACK, 1) + b"BL: booting app\r\n")

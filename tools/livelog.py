@@ -58,9 +58,7 @@ class LiveLog:
         self._sent = 0
         self._sleep = sleep
         self._pace_left_s = pace_budget_s
-        self._in_data = False
         self.paused_s = 0.0  # total demo pacing added to the run
-        self.paused_data_s = 0.0  # the part of it added after the first DATA packet
 
     # --- formatting helpers ---------------------------------------------------------------
     def _c(self, style: str, text: str) -> str:
@@ -110,14 +108,12 @@ class LiveLog:
         self._pace()
 
     def _pace(self) -> None:
-        """Slow the first packet lines down (budgeted); the caller subtracts paused_s."""
+        """Slow the first packet lines down (budgeted). paused_s says whether this happened."""
         if self._pace_left_s < PACE_LINE_S:
             return
         self._sleep(PACE_LINE_S)
         self._pace_left_s -= PACE_LINE_S
         self.paused_s += PACE_LINE_S
-        if self._in_data:
-            self.paused_data_s += PACE_LINE_S
 
     def _describe(self, direction: str, cmd: int, payload: bytes) -> str:
         if cmd == bp.CMD_HELLO:
@@ -156,5 +152,4 @@ class LiveLog:
         offset = int.from_bytes(payload[:4], "little")
         size = len(payload) - 4
         self._sent = max(self._sent, offset + size)
-        self._in_data = True
         return f"flash 0x{APP_SLOT_BASE + offset:08X} +{size:3d} B{self._bar()}"

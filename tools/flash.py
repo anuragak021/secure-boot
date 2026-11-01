@@ -371,19 +371,20 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"flash: FAILED: {exc}", file=sys.stderr)
             return 2
-    note = ""
     if live:
         live.banner("UPDATE COMPLETE — application is running")
-        if live.paused_s > 0:  # remove the demo pacing so the numbers stay real
-            stats["total_s"] -= live.paused_s
-            stats["erase_s"] -= live.paused_s - live.paused_data_s
-            stats["data_s"] -= live.paused_data_s
-            stats["kb_per_s"] = stats["payload_bytes"] / 1024.0 / max(stats["data_s"], 1e-9)
-            note = f" (excluding {live.paused_s:.2f} s of demo pacing)"
+        if live.paused_s > 0:
+            # The pacing sleeps overlap with the bootloader's own work, so the real timings
+            # cannot be recovered by subtraction: do not print numbers that would be wrong.
+            print(
+                f"done: {stats['payload_bytes']:.0f} bytes "
+                "(timings not shown: demo pacing was on; use --live-pace 0 for a timed run)"
+            )
+            return 0
     print(
         f"done: {stats['payload_bytes']:.0f} bytes, total {stats['total_s']:.2f} s "
         f"(erase {stats['erase_s']:.2f} s, data {stats['data_s']:.2f} s, "
-        f"{stats['kb_per_s']:.2f} KB/s){note}"
+        f"{stats['kb_per_s']:.2f} KB/s)"
     )
     return 0
 

@@ -14,7 +14,7 @@ from typing import TextIO
 import bl_protocol as bp
 import imagefmt as im
 
-APP_SLOT_BASE = 0x0802_0400  # first byte after the 0x400 header area (flash layout: bootloader 128 KB, then the 1 KB header area)
+APP_SLOT_BASE = 0x0802_0400  # first byte after the 0x400 header area
 BAR_WIDTH = 24
 PACE_LINE_S = 0.25  # demo pacing: pause after each packet line so the arrows are readable
 BOOTLOADER_LOG_PREFIX = "BL:"

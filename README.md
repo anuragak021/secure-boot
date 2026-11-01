@@ -15,6 +15,8 @@ Screen recording of two real updates on the Nucleo board: a successful 256 KB up
 
 The board used: a Nucleo-H753ZI, connected over its ST-Link USB port.
 
+To record the same thing on your own board with the small 1.5 KB demo app (about 1 s of real transfer, first packets slowed down for the camera): `python3 tools/demo.py`. It runs a rejected update, then a good one.
+
 ![Nucleo-H753ZI board](docs/board.jpg)
 
 ## What was built and tested

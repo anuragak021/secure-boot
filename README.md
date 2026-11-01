@@ -11,13 +11,13 @@ Signing is the first item on the roadmap. The folder name is the project name.
 
 Screen recording of two real updates on the Nucleo board, at real speed (`python3 tools/demo.py`): first an update with a link fault injected at 88% of the transfer, which the bootloader rejects (`BAD_CRC`, three retries, app not booted), then a good update that ends with the app running. The demo image is the 1.5 KB demo app padded to 2.3 KB; the first packets are deliberately slowed down so the arrows are readable (see `--live-pace`).
 
-![flash.py --live: an update over UART, then a rejected one](docs/demo.gif)
+![demo.py: a rejected update at 88%, then a good update](docs/demo.gif)
 
 The board used: a Nucleo-H753ZI, connected over its ST-Link USB port.
 
-To record the same thing on your own board with the small 1.5 KB demo app (about 1 s of real transfer, first packets slowed down for the camera): `python3 tools/demo.py`. It runs a rejected update, then a good one.
-
 ![Nucleo-H753ZI board](docs/board.jpg)
+
+To record the same thing on your own board with the small 1.5 KB demo app (about 1 s of real transfer, first packets slowed down for the camera): `python3 tools/demo.py`. It runs a rejected update, then a good one.
 
 ## What was built and tested
 

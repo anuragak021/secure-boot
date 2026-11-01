@@ -7,6 +7,16 @@ booted. Written in C11 (CMSIS, no HAL) with Python host tools.
 **Not a secure boot yet.** There is no signature check: CRC32 detects corruption, not tampering.
 Signing is the first item on the roadmap. The folder name is the project name.
 
+## Demo
+
+Screen recording of two real updates on the Nucleo board, shown at 1.5x speed: a successful 256 KB update over UART, then one with a link fault injected at 88% that the bootloader rejects, leaving the app unbooted. The trace is `flash.py --live`; the image is the demo app padded to 256 KB (see Quick start).
+
+![flash.py --live: an update over UART, then a rejected one](docs/demo.gif)
+
+The board used: a Nucleo-H753ZI, connected over its ST-Link USB port.
+
+![Nucleo-H753ZI board](docs/board.jpg)
+
 ## What was built and tested
 
 | Area | What | Evidence |

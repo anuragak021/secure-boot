@@ -72,6 +72,10 @@ class LiveLog:
         """Flasher.log replacement: status lines (retries, phase changes)."""
         self._emit(self._c(_YELLOW, f"•  {message.strip()}"))
 
+    def text(self, line: str) -> None:
+        """Flasher.text: a log line the bootloader itself printed on the UART."""
+        self._emit(f"{self._c(_MAGENTA, 'MCU log      ')} {self._c(_BOLD, line)}")
+
     def banner(self, text: str) -> None:
         """A highlighted line for the caller's own milestones."""
         self._emit(self._c(_BOLD + _MAGENTA, f"══ {text} ══"))

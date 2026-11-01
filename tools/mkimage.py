@@ -17,10 +17,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--version", default="1.0.0", help="MAJOR.MINOR.PATCH or integer (default 1.0.0)"
     )
+    ap.add_argument(
+        "--pad-to",
+        type=int,
+        metavar="BYTES",
+        help="append filler after the app so the payload is BYTES long (demo of a big transfer)",
+    )
     args = ap.parse_args(argv)
 
     try:
         payload = args.input.read_bytes()
+        if args.pad_to is not None:
+            if args.pad_to < len(payload):
+                raise ImageError(
+                    f"--pad-to {args.pad_to} is smaller than the app ({len(payload)} B)"
+                )
+            payload += bytes((i * 131 + 17) & 0xFF for i in range(args.pad_to - len(payload)))
         image = build_image(payload, parse_version(args.version))
         hdr = check_image(image)
     except (OSError, ImageError) as exc:

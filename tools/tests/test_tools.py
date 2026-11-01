@@ -3,12 +3,14 @@
 import struct
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import bl_protocol as bp
+import flash
 import imagefmt as im
 import mkimage
 
@@ -128,6 +130,54 @@ class MkimageCliTests(unittest.TestCase):
             self.assertEqual(hdr.fw_version, 0x020001)
             self.assertEqual(struct.unpack_from("<I", out.read_bytes(), 12)[0], 400)
             self.assertEqual(mkimage.main([str(Path(d) / "missing.bin"), "-o", str(out)]), 1)
+
+    def test_pad_to(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = Path(d) / "app.bin"
+            out = Path(d) / "app.img"
+            src.write_bytes(b"\x01\x02\x03\x04" * 100)
+            self.assertEqual(mkimage.main([str(src), "-o", str(out), "--pad-to", "4096"]), 0)
+            img = out.read_bytes()
+            im.check_image(img)
+            self.assertEqual(len(img), im.HEADER_AREA_BYTES + 4096)
+            self.assertEqual(
+                img[im.HEADER_AREA_BYTES : im.HEADER_AREA_BYTES + 400], src.read_bytes()
+            )
+            self.assertEqual(mkimage.main([str(src), "-o", str(out), "--pad-to", "10"]), 1)
+
+
+class TextLogTests(unittest.TestCase):
+    class Fake:
+        def __init__(self, data):
+            self.data = bytearray(data)
+
+        def write(self, d):
+            return len(d)
+
+        def read(self, size=1):
+            out = bytes(self.data[:size])
+            del self.data[:size]
+            return out
+
+        def reset_input_buffer(self):
+            pass
+
+    def test_text_before_ack_is_split_off_not_fatal(self):
+        ack = bp.encode_packet(bp.CMD_ACK, 7)
+        link = self.Fake(b"\r\nBL: start\r\nBL: no valid app, staying\r\n" + ack)
+        lines = []
+        fl = flash.Flasher(link, text=lines.append)
+        pkt = fl._next_packet(time.monotonic() + 1.0)
+        self.assertEqual((pkt.cmd, pkt.seq), (bp.CMD_ACK, 7))
+        self.assertEqual(lines, ["BL: start", "BL: no valid app, staying"])
+
+    def test_trailing_text_after_last_frame_is_reported(self):
+        link = self.Fake(bp.encode_packet(bp.CMD_ACK, 1) + b"BL: booting app\r\n")
+        lines = []
+        fl = flash.Flasher(link, text=lines.append)
+        self.assertIsNotNone(fl._next_packet(time.monotonic() + 0.3))
+        self.assertIsNone(fl._next_packet(time.monotonic() + 0.1))
+        self.assertEqual(lines, ["BL: booting app"])
 
 
 if __name__ == "__main__":

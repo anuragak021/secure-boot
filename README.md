@@ -62,7 +62,17 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 python3 tools/flash.py build-arm/app_demo/app_slow.img
 ```
 
-Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). It is decoded on the host from the real wire traffic; the bootloader itself prints no text. Handy for screen recordings.
+Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). Packets are decoded on the host from the real wire traffic, and the bootloader's own text log lines (`BL: start`, `BL: HELLO received`, ...) are shown as `MCU log` lines. Handy for screen recordings.
+
+For a longer demo transfer, `mkimage.py --pad-to` appends deterministic filler after the app. The app is unchanged and the filler is never executed; it only makes the transfer bigger:
+
+```sh
+python3 tools/mkimage.py build-arm/app_demo/app_slow.bin --version 2.0.0 --pad-to 262144 \
+  -o build-arm/app_demo/app_slow_256k.img
+python3 tools/flash.py --live build-arm/app_demo/app_slow_256k.img
+```
+
+Measured on the board with this 256 KB padded image (one run): 31.1 s total, erase 2.3 s, data 28.7 s, 8.9 KB/s. The 1.5 KB image measured earlier is a different case: 9.9 KB/s, but dominated by the erase.
 
 ```sh
 python3 tools/flash.py --live build-arm/app_demo/app_slow.img

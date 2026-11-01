@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import re
 import sys
 import time
 from typing import Protocol
@@ -21,6 +22,10 @@ HELLO_INTERVAL_S = 0.05
 HELLO_DRAIN_S = 0.15
 FIXED_HEADER_BYTES = im.HEADER_BYTES
 
+
+# The bootloader also prints text lines ("BL: start" plus CR LF). They have no 0x00 delimiter,
+# so they would be glued onto the next frame and destroy it.
+TEXT_LINES = re.compile(rb"(?:[\x20-\x7e]*\r\n)+")
 
 STLINK_PORT_GLOB = "/dev/serial/by-id/*STLINK*-if02"
 
@@ -54,12 +59,14 @@ class Flasher:
         link: Link,
         log=print,
         trace=None,
+        text=None,
         reply_timeout: float = DEFAULT_REPLY_TIMEOUT_S,
         start_timeout: float = START_TIMEOUT_S,
     ) -> None:
         self.link = link
         self.log = log
         self.trace = trace  # optional callback(direction, cmd, seq, payload) per packet
+        self.text = text  # optional callback(line) for the bootloader's text log lines
         self.reply_timeout = reply_timeout
         self.start_timeout = start_timeout
         self.seq = 0
@@ -77,10 +84,24 @@ class Flasher:
                     return frame
                 continue
             if time.monotonic() >= deadline:
+                self._flush_text()
                 return None
             chunk = self.link.read(1)
             if chunk:
                 self._rx += chunk
+
+    def _flush_text(self) -> None:
+        """Hand any complete text log lines at the head of the buffer to the text callback."""
+        m = TEXT_LINES.match(self._rx)
+        if m:
+            self._emit_text(bytes(self._rx[: m.end()]))
+            del self._rx[: m.end()]
+
+    def _emit_text(self, raw: bytes) -> None:
+        if self.text:
+            for line in raw.decode("ascii", "replace").splitlines():
+                if line.strip():
+                    self.text(line.strip())
 
     def _next_packet(self, deadline: float) -> bp.Packet | None:
         while True:
@@ -90,7 +111,15 @@ class Flasher:
             try:
                 pkt = bp.decode_frame(frame)
             except bp.ProtocolError:
-                continue  # noise, e.g. the app's text output: skip it
+                # Text log lines glued in front of a real frame: split them off, retry.
+                m = TEXT_LINES.match(frame)
+                if not m:
+                    continue  # other noise: skip it
+                self._emit_text(frame[: m.end()])
+                try:
+                    pkt = bp.decode_frame(frame[m.end() :])
+                except bp.ProtocolError:
+                    continue
             if self.trace:
                 self.trace("RX", pkt.cmd, pkt.seq, pkt.payload)
             return pkt
@@ -241,7 +270,9 @@ def main(argv: list[str] | None = None) -> int:
 
     with link:
         live = livelog.LiveLog() if args.live else None
-        fl = Flasher(link, log=live.log, trace=live.trace) if live else Flasher(link)
+        fl = (
+            Flasher(link, log=live.log, trace=live.trace, text=live.text) if live else Flasher(link)
+        )
         try:
             if live:
                 live.banner(f"STM32H753ZI secure bootloader — {args.port} @ {args.baud} baud")

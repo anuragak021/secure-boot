@@ -13,7 +13,7 @@ Screen recording of two real updates on the Nucleo board, at real speed (`python
 
 ![demo.py: a rejected update at 88%, then a good update](docs/demo.gif)
 
-The animation above is a 20 s GIF made from the screen recording. The original, unedited recording (1080p, with the recorder window visible at both ends) is [`docs/demo.mp4`](docs/demo.mp4); GitHub plays it in the browser when you open it.
+The animation above is the full, unedited screen recording converted to GIF (23 s, 1280 px, 10 fps; the recorder window is visible at both ends). The original 1080p video is [`docs/demo.mp4`](docs/demo.mp4).
 
 The board used: a Nucleo-H753ZI, connected over its ST-Link USB port.
 

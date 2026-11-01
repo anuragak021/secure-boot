@@ -1,5 +1,6 @@
 """Unit tests for the host tools. Run: python3 -I -m unittest discover -s tools/tests -t tools"""
 
+import io
 import struct
 import sys
 import tempfile
@@ -12,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import bl_protocol as bp
 import flash
 import imagefmt as im
+import livelog
 import mkimage
 
 
@@ -170,6 +172,17 @@ class TextLogTests(unittest.TestCase):
         pkt = fl._next_packet(time.monotonic() + 1.0)
         self.assertEqual((pkt.cmd, pkt.seq), (bp.CMD_ACK, 7))
         self.assertEqual(lines, ["BL: start", "BL: no valid app, staying"])
+
+    def test_live_log_hides_app_output_and_shows_bootloader_lines(self):
+        out = io.StringIO()
+        live = livelog.LiveLog(out=out, color=False)
+        live.text("app slow running")
+        live.text("BL: start")
+        live.error("UPDATE FAILED: x")
+        text = out.getvalue()
+        self.assertNotIn("app slow", text)
+        self.assertIn("BL: start", text)
+        self.assertIn("UPDATE FAILED", text)
 
     def test_trailing_text_after_last_frame_is_reported(self):
         link = self.Fake(bp.encode_packet(bp.CMD_ACK, 1) + b"BL: booting app\r\n")

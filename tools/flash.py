@@ -7,6 +7,7 @@ import argparse
 import glob
 import os
 import re
+import subprocess
 import sys
 import time
 from typing import Protocol
@@ -18,6 +19,7 @@ import livelog
 DEFAULT_REPLY_TIMEOUT_S = 1.0
 START_TIMEOUT_S = 20.0  # START erases flash sectors; the CPU is stalled for seconds
 RETRY_LIMIT = 3
+OPENOCD_TIMEOUT_S = 20.0
 HELLO_INTERVAL_S = 0.05
 HELLO_DRAIN_S = 0.15
 FIXED_HEADER_BYTES = im.HEADER_BYTES
@@ -125,11 +127,24 @@ class Flasher:
             return pkt
 
     # --- request/response ---------------------------------------------------------------
-    def exchange(self, cmd: int, payload: bytes = b"", timeout: float | None = None) -> bytes:
-        """Send one packet and wait for its ACK. Resend on timeout or NACK(BAD_CRC)."""
+    def exchange(
+        self,
+        cmd: int,
+        payload: bytes = b"",
+        timeout: float | None = None,
+        corrupt: bool = False,
+    ) -> bytes:
+        """Send one packet and wait for its ACK. Resend on timeout or NACK(BAD_CRC).
+
+        corrupt: test aid, damage the frame on the wire on every attempt (a dead link).
+        """
         seq = self.seq
         timeout = self.reply_timeout if timeout is None else timeout
         frame = bp.encode_packet(cmd, seq, payload)
+        if corrupt:
+            damaged = bytearray(frame)
+            damaged[len(damaged) // 2] ^= 0x10  # same damage as the lost-frame e2e test
+            frame = bytes(damaged)
         for attempt in range(1, RETRY_LIMIT + 2):
             self.link.write(frame)
             if self.trace:
@@ -151,8 +166,11 @@ class Flasher:
                     raise FlashError(f"bootloader rejected command 0x{cmd:02X}: NACK {name}")
                 retry_reason = "NACK BAD_CRC"
                 break
-            self.log(f"  retry {attempt}/{RETRY_LIMIT} for cmd 0x{cmd:02X} ({retry_reason})")
-        raise FlashError(f"no ACK for command 0x{cmd:02X} after {RETRY_LIMIT} retries")
+            if attempt <= RETRY_LIMIT:
+                self.log(f"retry {attempt}/{RETRY_LIMIT} for cmd 0x{cmd:02X} ({retry_reason})")
+        raise FlashError(
+            f"no ACK for command 0x{cmd:02X} after {RETRY_LIMIT} retries (last: {retry_reason})"
+        )
 
     # --- session ------------------------------------------------------------------------
     def hello(self, wait_s: float) -> bytes:
@@ -195,6 +213,7 @@ class Flasher:
         boot: bool = True,
         flip_payload_byte: int | None = None,
         abort_after_packets: int | None = None,
+        fail_at_percent: int | None = None,
     ) -> dict[str, float]:
         header, payload = im.split_image(image)  # header bytes are sent exactly as stored
         if flip_payload_byte is not None:  # test aid: corrupt the data after the header CRC
@@ -212,7 +231,13 @@ class Flasher:
         next_report = 10
         for off in range(0, total, bp.MAX_DATA_BYTES):
             chunk = payload[off : off + bp.MAX_DATA_BYTES]
-            self.exchange(bp.CMD_DATA, off.to_bytes(4, "little") + chunk)
+            if fail_at_percent is not None and off * 100 // total >= fail_at_percent:
+                self.log(f"injecting a link fault at {off * 100 // total}% (test)")
+            self.exchange(
+                bp.CMD_DATA,
+                off.to_bytes(4, "little") + chunk,
+                corrupt=fail_at_percent is not None and off * 100 // total >= fail_at_percent,
+            )
             sent += len(chunk)
             packets += 1
             if abort_after_packets is not None and packets >= abort_after_packets:
@@ -237,6 +262,29 @@ class Flasher:
         }
 
 
+def reset_board() -> None:
+    """Reset the MCU through the ST-Link with OpenOCD (same as pressing the RESET button)."""
+    cmd = [
+        "openocd",
+        "-f",
+        "interface/stlink.cfg",
+        "-f",
+        "target/stm32h7x.cfg",
+        "-c",
+        "init",
+        "-c",
+        "reset run",
+        "-c",
+        "exit",
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, timeout=OPENOCD_TIMEOUT_S, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise FlashError(f"--reset failed to run openocd: {exc}") from exc
+    if res.returncode != 0:
+        raise FlashError("--reset: openocd could not reset the board (is the ST-Link attached?)")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("image", help="image file from mkimage.py")
@@ -246,10 +294,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--live", action="store_true", help="show a live colour trace of every packet (for demos)"
     )
+    ap.add_argument(
+        "--reset",
+        action="store_true",
+        help="reset the board through OpenOCD instead of pressing RESET yourself",
+    )
     ap.add_argument("--no-boot", action="store_true", help="verify but do not send BOOT")
     ap.add_argument("--no-local-check", action="store_true", help="skip image validation (tests)")
     ap.add_argument(
         "--test-flip-payload-byte", type=int, metavar="N", help="corrupt payload byte N"
+    )
+    ap.add_argument(
+        "--test-fail-at",
+        type=int,
+        metavar="PERCENT",
+        help="damage the packet at PERCENT of the transfer until the retries run out",
     )
     ap.add_argument("--test-abort-after", type=int, metavar="N", help="stop after N DATA packets")
     args = ap.parse_args(argv)
@@ -276,6 +335,11 @@ def main(argv: list[str] | None = None) -> int:
         try:
             if live:
                 live.banner(f"STM32H753ZI secure bootloader — {args.port} @ {args.baud} baud")
+            if args.reset:
+                (live.banner if live else print)("resetting the board through the ST-Link")
+                link.reset_input_buffer()
+                reset_board()
+            elif live:
                 live.banner("waiting for bootloader: press RESET on the board")
             else:
                 print(f"waiting for bootloader on {args.port} (press RESET on the board)...")
@@ -290,9 +354,14 @@ def main(argv: list[str] | None = None) -> int:
                 boot=not args.no_boot,
                 flip_payload_byte=args.test_flip_payload_byte,
                 abort_after_packets=args.test_abort_after,
+                fail_at_percent=args.test_fail_at,
             )
         except (FlashError, IndexError) as exc:
-            print(f"flash: FAILED: {exc}", file=sys.stderr)
+            if live:
+                live.error(f"UPDATE FAILED: {exc}")
+                live.error("application NOT booted; the bootloader stays in update mode")
+            else:
+                print(f"flash: FAILED: {exc}", file=sys.stderr)
             return 2
     if live:
         live.banner("UPDATE COMPLETE — application is running")

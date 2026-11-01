@@ -20,7 +20,7 @@ Signing is the first item on the roadmap. The folder name is the project name.
 ### Tests
 
 * **50 C test functions** in 6 executables (CRC, COBS, header, protocol codec, updater state machine with a fake H7 flash, boot check), built with `-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wdouble-promotion -Werror` plus ASan/UBSan, run by `ctest`.
-* **24 Python tests**: 13 unit tests of the image format, COBS, packets and `mkimage.py`, and 11 tests of `flash.py`, of which 9 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 8 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer, `--no-boot` and the `--live` trace.
+* **29 Python tests**: 14 unit tests of the image format, COBS, packets and `mkimage.py`, and 15 tests of `flash.py` and its live trace, of which 10 run it end to end against `sim_bootloader` (the actual C framing/session/updater code over pipes). Those 10 cover a normal update, a non-word-aligned size, a damaged frame, a lost frame, a flipped payload byte, a corrupt header, a killed transfer, a link fault injected at 88% of the transfer, `--no-boot` and the `--live` trace.
 * **10 hardware scenarios** on the Nucleo (`tools/hwtest.py`, report in [`docs/hw_test_results.md`](docs/hw_test_results.md)), all passing on the final firmware:
   fast to slow and back, flipped payload byte, wrong magic / oversized image / bad header CRC, killed transfer then reset, duplicate / out-of-order / wrong-seq packets, throughput.
 * Confirmed by eye on the board: after `flash.py` updated fast to slow, LD3 (red) blinks about once per second and LD1/LD2 are off; with B1 held at reset the bootloader stays in update mode.
@@ -62,7 +62,7 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 python3 tools/flash.py build-arm/app_demo/app_slow.img
 ```
 
-Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). Packets are decoded on the host from the real wire traffic, and the bootloader's own text log lines (`BL: start`, `BL: HELLO received`, ...) are shown as `MCU log` lines. Handy for screen recordings.
+Add `--live` for a colour-coded, timestamped trace of every packet (command, sequence number, flash address, progress bar, NACK reasons). Packets are decoded on the host from the real wire traffic, and the bootloader's own text log lines (`BL: start`, `BL: HELLO received`, ...) are shown as `MCU log` lines. Handy for screen recordings. `--reset` resets the board through OpenOCD first, so nobody has to press the button at the right moment.
 
 For a longer demo transfer, `mkimage.py --pad-to` appends deterministic filler after the app. The app is unchanged and the filler is never executed; it only makes the transfer bigger:
 
@@ -70,6 +70,12 @@ For a longer demo transfer, `mkimage.py --pad-to` appends deterministic filler a
 python3 tools/mkimage.py build-arm/app_demo/app_slow.bin --version 2.0.0 --pad-to 262144 \
   -o build-arm/app_demo/app_slow_256k.img
 python3 tools/flash.py --live build-arm/app_demo/app_slow_256k.img
+```
+
+Failure demo: `--test-fail-at 88` damages one DATA packet on the wire on every attempt once 88% of the image is sent. The bootloader answers `NACK BAD_CRC`, the flasher retries three times, then aborts with a red banner; the app is not booted and the header was never written. (A single flipped byte in the image, `--test-flip-payload-byte`, is only caught at VERIFY, after the whole transfer.)
+
+```sh
+python3 tools/flash.py --live --reset --test-fail-at 88 build-arm/app_demo/app_slow_256k.img
 ```
 
 Measured on the board with this 256 KB padded image (one run): 31.1 s total, erase 2.3 s, data 28.7 s, 8.9 KB/s. The 1.5 KB image measured earlier is a different case: 9.9 KB/s, but dominated by the erase.

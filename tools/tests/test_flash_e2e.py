@@ -96,6 +96,13 @@ class FlashEndToEnd(unittest.TestCase):
         self.assertIn("boot_requested=1", err)
         self.assertGreater(out["kb_per_s"], 0)
 
+    def test_fault_injected_mid_transfer_aborts_and_never_boots(self):
+        self.update_kw = {"fail_at_percent": 88}
+        out, mem, err = self.run_flash(make_image(8000))
+        self.assertIsInstance(out, flash.FlashError)
+        self.assertEqual(mem[:SLOT_HEADER_AREA], b"\xff" * SLOT_HEADER_AREA)  # header never written
+        self.assertIn("boot_requested=0", err)
+
     def test_live_trace_shows_decoded_packets(self):
         image = make_image(1000)
         out = io.StringIO()

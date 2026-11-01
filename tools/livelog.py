@@ -16,6 +16,7 @@ import imagefmt as im
 
 APP_SLOT_BASE = 0x0802_0400  # first byte after the 0x400 header area (flash layout: bootloader 128 KB, then the 1 KB header area)
 BAR_WIDTH = 24
+BOOTLOADER_LOG_PREFIX = "BL:"
 
 CMD_NAMES = {
     bp.CMD_HELLO: "HELLO",
@@ -74,7 +75,13 @@ class LiveLog:
 
     def text(self, line: str) -> None:
         """Flasher.text: a log line the bootloader itself printed on the UART."""
+        if not line.startswith(BOOTLOADER_LOG_PREFIX):
+            return  # the demo app's own output is not part of the update story
         self._emit(f"{self._c(_MAGENTA, 'MCU log      ')} {self._c(_BOLD, line)}")
+
+    def error(self, text: str) -> None:
+        """A red banner for a failed update."""
+        self._emit(self._c(_BOLD + _RED, f"✖✖ {text} ✖✖"))
 
     def banner(self, text: str) -> None:
         """A highlighted line for the caller's own milestones."""

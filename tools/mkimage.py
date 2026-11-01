@@ -7,7 +7,14 @@ import argparse
 import sys
 from pathlib import Path
 
-from imagefmt import HEADER_AREA_BYTES, ImageError, build_image, check_image, parse_version
+from imagefmt import (
+    HEADER_AREA_BYTES,
+    ImageError,
+    build_image,
+    check_image,
+    pad_payload,
+    parse_version,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,11 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         payload = args.input.read_bytes()
         if args.pad_to is not None:
-            if args.pad_to < len(payload):
-                raise ImageError(
-                    f"--pad-to {args.pad_to} is smaller than the app ({len(payload)} B)"
-                )
-            payload += bytes((i * 131 + 17) & 0xFF for i in range(args.pad_to - len(payload)))
+            payload = pad_payload(payload, args.pad_to)
         image = build_image(payload, parse_version(args.version))
         hdr = check_image(image)
     except (OSError, ImageError) as exc:

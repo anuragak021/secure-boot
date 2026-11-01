@@ -78,6 +78,13 @@ def build_header(payload: bytes, fw_version: int) -> ImageHeader:
     return ImageHeader(**{**partial.__dict__, "header_crc32": header_crc})
 
 
+def pad_payload(payload: bytes, size: int) -> bytes:
+    """Append deterministic filler so the payload is `size` bytes (it is never executed)."""
+    if size < len(payload):
+        raise ImageError(f"cannot pad to {size} bytes: the payload is already {len(payload)}")
+    return payload + bytes((i * 131 + 17) & 0xFF for i in range(size - len(payload)))
+
+
 def build_image(payload: bytes, fw_version: int) -> bytes:
     """Header area (header + 0xFF padding) followed by the payload."""
     header = build_header(payload, fw_version).to_bytes()

@@ -13,13 +13,18 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 import flash
+import imagefmt as im
 
 DEFAULT_IMAGE = Path(__file__).resolve().parent.parent / "build-arm" / "app_demo" / "app_slow.img"
-DEFAULT_FAIL_AT_PERCENT = 60  # 6 DATA packets: the 5th starts at 67%, its bar reads 84%
+# The demo image is padded to 2326 bytes = 10 DATA packets, so the 8th packet (starting at 77%)
+# ends at 88.0% of the transfer, where the progress bar is when the fault hits.
+DEMO_PAYLOAD_BYTES = 2326
+DEFAULT_FAIL_AT_PERCENT = 77
 CLEAR_SCREEN = "\x1b[2J\x1b[H"
 
 
@@ -31,10 +36,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pause", type=float, default=3.0, help="seconds between the two runs")
     args = ap.parse_args(argv)
 
+    try:
+        header, payload = im.split_image(args.image.read_bytes())
+        fw_version = im.parse_header(header).fw_version
+        padded = im.build_image(im.pad_payload(payload, DEMO_PAYLOAD_BYTES), fw_version)
+    except (OSError, im.ImageError) as exc:
+        print(f"demo: error: {exc}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        image_path = Path(tmp) / "demo.img"
+        image_path.write_bytes(padded)
+        return run_demo(args, image_path)
+
+
+def run_demo(args: argparse.Namespace, image: Path) -> int:
     common = ["--live", "--reset", "--live-pace", str(args.live_pace)]
     runs = [
-        ("rejected update", [*common, "--test-fail-at", str(args.fail_at), str(args.image)], 2),
-        ("good update", [*common, str(args.image)], 0),
+        ("rejected update", [*common, "--test-fail-at", str(args.fail_at), str(image)], 2),
+        ("good update", [*common, str(image)], 0),
     ]
     for index, (name, flash_args, expected_rc) in enumerate(runs):
         if index:
